@@ -4,6 +4,7 @@
                                                                                 
 #include <cstdio>
 #include <iostream>
+#include <sstream>
 #include <cstring>
 #include <id3/tag.h>
 #include <getopt.h>
@@ -22,6 +23,54 @@
 
 #define TMPSIZE 255    
 
+enum pic_type {
+	OTHER,
+	ICON_32,
+	ICON_OTHER,
+	COVER_FRONT,
+	COVER_BACK,
+	LEAFLET,
+	MEDIA,
+	LEAD_ARTIST,
+	ARTIST,
+	CONDUCTOR,
+	BAND,
+	COMPOSER,
+	LYRICIST,
+	RECORDING_LOCATION,
+	DURING_RECORDING,
+	DURING_PERFORMANCE,
+	MOVIE,
+	COLOURED_FISH,
+	ILLUSTRATION,
+	BAND_LOGOTYPE,
+	PUBLISHER_LOGOTYPE
+};
+
+const char * const pic_type_desc[] = {
+	"Other",
+	"32x32 pixels 'file icon' (PNG only)",
+	"Other file icon",
+	"Cover (front)",
+	"Cover (back)",
+	"Leaflet page",
+	"Media (e.g. lable side of CD)",
+	"Lead artist/lead performer/soloist",
+	"Artist/performer",
+	"Conductor",
+	"Band/Orchestra",
+	"Composer",
+	"Lyricist/text writer",
+	"Recording Location",
+	"During recording",
+	"During performance",
+	"Movie/video screen capture",
+	"A bright coloured fish",
+	"Illustration",
+	"Band/artist logotype",
+	"Publisher/Studio logotype"
+};
+
 /* Write both tags by default */
 flags_t UpdFlags = ID3TT_ALL;
 
@@ -33,6 +82,7 @@ void PrintUsage(char *sName)
   std::cout << "  -h,  --help               Display this help and exit" << std::endl;
   std::cout << "  -f,  --list-frames        Display all possible frames for id3v2" << std::endl;
   std::cout << "  -L,  --list-genres        Lists all id3v1 genres" << std::endl;
+  std::cout << "  -k,  --list-image-types   Lists all id3v2 APIC frame (image) types" << std::endl;
   std::cout << "  -v,  --version            Display version information and exit" << std::endl;
   std::cout << "  -l,  --list               Lists the tag(s) on the file(s)" << std::endl;
   std::cout << "  -R,  --list-rfc822        Lists using an rfc822-style format for output" << std::endl;
@@ -42,6 +92,8 @@ void PrintUsage(char *sName)
   std::cout << "  -C,  --convert            Converts id3v1 tag to id3v2" << std::endl;
   std::cout << "  -1,  --id3v1-only         Writes only id3v1 tag" << std::endl;
   std::cout << "  -2,  --id3v2-only         Writes only id3v2 tag" << std::endl;
+  std::cout << "  -i,  --image   \"TYPE\":\"MIMETYPE\":\"FILENAME\"" << std::endl
+       << "                            Embed APIC frame (image)" << std::endl;
   std::cout << "  -a,  --artist  \"ARTIST\"   Set the artist information" << std::endl;
   std::cout << "  -A,  --album   \"ALBUM\"    Set the album title information" << std::endl;
   std::cout << "  -t,  --song    \"SONG\"     Set the song title information" << std::endl;
@@ -108,8 +160,10 @@ int main( int argc, char *argv[])
       { "help",    no_argument,       &iLongOpt, 'h' },
       { "list-frames",
                    no_argument,       &iLongOpt, 'f' },
-      { "list-genres",   
+      { "list-genres",  
                   no_argument,        &iLongOpt, 'L' },
+      { "list-image-types",  
+                  no_argument,        &iLongOpt, 'k' },
       { "version", no_argument,       &iLongOpt, 'v' },
 
     // list / remove / convert
@@ -126,6 +180,7 @@ int main( int argc, char *argv[])
       { "id3v2-only", no_argument,       &iLongOpt, '2' },
 
     // infomation to tag
+      { "image",   required_argument, &iLongOpt, 'i' },
       { "artist",  required_argument, &iLongOpt, 'a' },
       { "album",   required_argument, &iLongOpt, 'A' },
       { "song",    required_argument, &iLongOpt, 't' },
@@ -209,7 +264,7 @@ int main( int argc, char *argv[])
       { "WXXX",    required_argument, &optFrameID, ID3FID_WWWUSER },
       { 0, 0, 0, 0 }
     };
-    iOpt = getopt_long (argc, argv, "12hfLvlRdsDCa:A:t:c:g:y:T:",
+    iOpt = getopt_long (argc, argv, "12hfLkvlRdsDCa:A:t:c:g:y:T:i:",
                         long_options, &option_index);
 
     if (iOpt == -1  && argCounter == 0)
@@ -254,6 +309,11 @@ int main( int argc, char *argv[])
                                         exit (0);
       case 'C': ConvertTag(argc, argv, optind);    
                                         exit (0);
+      case 'k':
+                for (size_t i = 0; i < sizeof(pic_type_desc) / sizeof(*pic_type_desc); ++i) {
+                  std::cerr << "  " << i << "  " << pic_type_desc[i] << '\n';
+                }
+                break;
       case '1':
 		UpdFlags = ID3TT_ID3V1;
 		break;
@@ -261,6 +321,11 @@ int main( int argc, char *argv[])
 		UpdFlags = ID3TT_ID3V2;
 		break;
     // Tagging stuff 
+      case 'i': 
+                frameList[frameCounter].id   = ID3FID_PICTURE;
+                frameList[frameCounter].data = optarg;
+                frameCounter++;
+                break;
       case 'a': 
                 frameList[frameCounter].id   = ID3FID_LEADARTIST;
                 frameList[frameCounter].data = optarg;
@@ -600,19 +665,33 @@ int main( int argc, char *argv[])
         }
         case ID3FID_PICTURE:
         {
-          char
-            *sMimeType = ID3_GetString(myFrame, ID3FN_MIMETYPE),
-            *sDesc     = ID3_GetString(myFrame, ID3FN_DESCRIPTION),
-            *sFormat   = ID3_GetString(myFrame, ID3FN_IMAGEFORMAT);
-          size_t
-            nPicType   = myFrame->Field(ID3FN_PICTURETYPE).Get(),
-            nDataSize  = myFrame->Field(ID3FN_DATA).Size();
-          std::cout << "(" << sDesc << ")[" << sFormat << ", "
-               << nPicType << "]: " << sMimeType << ", " << nDataSize
-               << " bytes" << std::endl;
-          delete [] sMimeType;
-          delete [] sDesc;
-          delete [] sFormat;
+          uint32_t pic_type;
+          std::string
+            mime_type,
+            file_name;
+
+          std::stringstream spec;
+          if (strlen(frameList[ii].data) > 0) {
+            spec << frameList[ii].data;
+
+            if (spec >> pic_type && spec.get() == ':' &&
+              getline(spec, mime_type, ':') && !spec.eof() &&
+              getline(spec, file_name, '\0') && spec.eof()) {
+              std::cout << "SDAD" << std::endl;
+              std::cout << file_name.c_str() << std::endl;
+              myFrame->GetField(ID3FN_PICTURETYPE)->Set(pic_type);
+              myFrame->GetField(ID3FN_MIMETYPE)->Set(mime_type.c_str());
+              myFrame->GetField(ID3FN_DATA)->FromFile(file_name.c_str());
+            } else {
+              throw "Invalid import specification.";
+            }
+          }
+
+          if (pFrame != NULL) {
+            myTag.RemoveFrame(pFrame);
+          }
+
+          myTag.AttachFrame(myFrame);
           break;
         }
         case ID3FID_GENERALOBJECT:
