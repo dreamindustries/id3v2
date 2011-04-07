@@ -677,8 +677,6 @@ int main( int argc, char *argv[])
             if (spec >> pic_type && spec.get() == ':' &&
               getline(spec, mime_type, ':') && !spec.eof() &&
               getline(spec, file_name, '\0') && spec.eof()) {
-              std::cout << "SDAD" << std::endl;
-              std::cout << file_name.c_str() << std::endl;
               myFrame->GetField(ID3FN_PICTURETYPE)->Set(pic_type);
               myFrame->GetField(ID3FN_MIMETYPE)->Set(mime_type.c_str());
               myFrame->GetField(ID3FN_DATA)->FromFile(file_name.c_str());
