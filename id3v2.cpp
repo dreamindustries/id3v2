@@ -9,8 +9,6 @@
 #include <id3/tag.h>
 #include <getopt.h>
 #include <id3/misc_support.h>
-#include <unicode/ucnv.h>
-#include <unicode/utypes.h>
 #ifdef WIN32
 #include <io.h>
 #define snprintf _snprintf
@@ -76,38 +74,6 @@ const char * const pic_type_desc[] = {
 /* Write both tags by default */
 flags_t UpdFlags = ID3TT_ALL;
 
-const char *ConvertUnicode2(const char *in) {
-  int isize = strlen(in);
-  int osize = isize * 4 + 2; // do not expect more than 4 bytes per char
-  char *out = new char[osize];
-  UErrorCode pErrorCode;
-  U_SUCCESS(pErrorCode);
-  ucnv_convert(
-      "UTF-8",
-      "UTF-16",
-      out, osize,
-      in,  isize,
-      &pErrorCode);
-  return out;
-}
-
-const char *ConvertUnicode(const char *in) {
-  int isize = strlen(in);
-  int osize = isize * 4 + 2; // do not expect more than 4 bytes per char
-  char *out = new char[osize];
-  UErrorCode pErrorCode;
-  U_SUCCESS(pErrorCode);
-  int l = ucnv_convert(
-      "UTF-16",
-      "UTF-8",
-      out, osize,
-      in,  isize,
-      &pErrorCode);
-  std::cout << l << std::endl;
-  std::cout << ConvertUnicode2(out) << std::endl;
-  return out;
-}
-
 void PrintUsage(char *sName)
 {
   std::cout << "Usage: " << sName << " [OPTION]... [FILE]..." << std::endl;
@@ -124,7 +90,6 @@ void PrintUsage(char *sName)
   std::cout << "  -s,  --delete-v1          Deletes id3v1 tags" << std::endl;
   std::cout << "  -D,  --delete-all         Deletes both id3v1 and id3v2 tags" << std::endl;
   std::cout << "  -C,  --convert            Converts id3v1 tag to id3v2" << std::endl;
-  std::cout << "  -u,  --unicode            Use unicode encoding" << std::endl;
   std::cout << "  -1,  --id3v1-only         Writes only id3v1 tag" << std::endl;
   std::cout << "  -2,  --id3v2-only         Writes only id3v2 tag" << std::endl;
   std::cout << "  -i,  --image   \"TYPE\":\"MIMETYPE\":\"FILENAME\"" << std::endl
@@ -174,7 +139,6 @@ int main( int argc, char *argv[])
   int iOpt;
   int argCounter = 0;
   int ii;
-  int id3te = ID3TE_ISO8859_1;
   char tmp[TMPSIZE];
   FILE * fp;
   
@@ -212,7 +176,6 @@ int main( int argc, char *argv[])
       { "delete-all",  
                    no_argument,       &iLongOpt, 'D' },
       { "convert", no_argument,       &iLongOpt, 'C' },
-      { "unicode", no_argument,       &iLongOpt, 'u' },
       { "id3v1-only", no_argument,       &iLongOpt, '1' },
       { "id3v2-only", no_argument,       &iLongOpt, '2' },
 
@@ -301,7 +264,7 @@ int main( int argc, char *argv[])
       { "WXXX",    required_argument, &optFrameID, ID3FID_WWWUSER },
       { 0, 0, 0, 0 }
     };
-    iOpt = getopt_long (argc, argv, "12hfLkuvlRdsDCa:A:t:c:g:y:T:i:",
+    iOpt = getopt_long (argc, argv, "12hfLkvlRdsDCa:A:t:c:g:y:T:i:",
                         long_options, &option_index);
 
     if (iOpt == -1  && argCounter == 0)
@@ -346,9 +309,6 @@ int main( int argc, char *argv[])
                                         exit (0);
       case 'C': ConvertTag(argc, argv, optind);    
                                         exit (0);
-      case 'u':
-                id3te = ID3TE_UTF16;
-                break;
       case 'k':
                 for (size_t i = 0; i < sizeof(pic_type_desc) / sizeof(*pic_type_desc); ++i) {
                   std::cerr << "  " << i << "  " << pic_type_desc[i] << '\n';
@@ -519,9 +479,7 @@ int main( int argc, char *argv[])
             myTag.RemoveFrame(pFrame);
           }
           if (strlen(frameList[ii].data) > 0) {
-            //myFrame->Field(ID3FN_TEXT) = (id3te == ID3TE_UTF16 ? ConvertUnicode(frameList[ii].data) : frameList[ii].data);
-            myFrame->Field(ID3FN_TEXT) = ConvertUnicode(frameList[ii].data);
-            myFrame->Field(ID3FN_TEXTENC) = ID3FID_TRACKNUM;
+            myFrame->Field(ID3FN_TEXT) = frameList[ii].data;
             myTag.AttachFrame(myFrame);
           }
           break;
@@ -719,6 +677,8 @@ int main( int argc, char *argv[])
             if (spec >> pic_type && spec.get() == ':' &&
               getline(spec, mime_type, ':') && !spec.eof() &&
               getline(spec, file_name, '\0') && spec.eof()) {
+              std::cout << "SDAD" << std::endl;
+              std::cout << file_name.c_str() << std::endl;
               myFrame->GetField(ID3FN_PICTURETYPE)->Set(pic_type);
               myFrame->GetField(ID3FN_MIMETYPE)->Set(mime_type.c_str());
               myFrame->GetField(ID3FN_DATA)->FromFile(file_name.c_str());
