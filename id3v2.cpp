@@ -90,6 +90,7 @@ void PrintUsage(char *sName)
   std::cout << "  -s,  --delete-v1          Deletes id3v1 tags" << std::endl;
   std::cout << "  -D,  --delete-all         Deletes both id3v1 and id3v2 tags" << std::endl;
   std::cout << "  -C,  --convert            Converts id3v1 tag to id3v2" << std::endl;
+  std::cout << "  -u,  --utf16              Use utf16 as field encoding" << std::endl;
   std::cout << "  -1,  --id3v1-only         Writes only id3v1 tag" << std::endl;
   std::cout << "  -2,  --id3v2-only         Writes only id3v2 tag" << std::endl;
   std::cout << "  -i,  --image   \"TYPE\":\"MIMETYPE\":\"FILENAME\"" << std::endl
@@ -141,6 +142,7 @@ int main( int argc, char *argv[])
   int ii;
   char tmp[TMPSIZE];
   FILE * fp;
+  int id3te = ID3TE_ISO8859_1;
   
   struct frameInfo {
     enum ID3_FrameID id;
@@ -176,6 +178,7 @@ int main( int argc, char *argv[])
       { "delete-all",  
                    no_argument,       &iLongOpt, 'D' },
       { "convert", no_argument,       &iLongOpt, 'C' },
+      { "utf16",   no_argument,       &iLongOpt, 'u' },
       { "id3v1-only", no_argument,       &iLongOpt, '1' },
       { "id3v2-only", no_argument,       &iLongOpt, '2' },
 
@@ -264,7 +267,7 @@ int main( int argc, char *argv[])
       { "WXXX",    required_argument, &optFrameID, ID3FID_WWWUSER },
       { 0, 0, 0, 0 }
     };
-    iOpt = getopt_long (argc, argv, "12hfLkvlRdsDCa:A:t:c:g:y:T:i:",
+    iOpt = getopt_long (argc, argv, "12hfLkvlRdsDCua:A:t:c:g:y:T:i:",
                         long_options, &option_index);
 
     if (iOpt == -1  && argCounter == 0)
@@ -309,6 +312,7 @@ int main( int argc, char *argv[])
                                         exit (0);
       case 'C': ConvertTag(argc, argv, optind);    
                                         exit (0);
+      case 'u': id3te = ID3TE_UTF16; break;
       case 'k':
                 for (size_t i = 0; i < sizeof(pic_type_desc) / sizeof(*pic_type_desc); ++i) {
                   std::cerr << "  " << i << "  " << pic_type_desc[i] << '\n';
@@ -480,6 +484,7 @@ int main( int argc, char *argv[])
           }
           if (strlen(frameList[ii].data) > 0) {
             myFrame->Field(ID3FN_TEXT) = frameList[ii].data;
+            myFrame->Field(ID3FN_TEXTENC) = id3te;
             myTag.AttachFrame(myFrame);
           }
           break;
@@ -527,11 +532,13 @@ int main( int argc, char *argv[])
           if (text == NULL) 
           {
             myFrame->Field(ID3FN_TEXT) = frameList[ii].data;
+            myFrame->Field(ID3FN_TEXTENC) = id3te;
           } else {
             *text = '\0';
             text++;
             myFrame->Field(ID3FN_DESCRIPTION) = frameList[ii].data;
             myFrame->Field(ID3FN_TEXT) = text;
+            myFrame->Field(ID3FN_TEXTENC) = id3te;
           }
           if (strlen(ID3_GetString(myFrame, ID3FN_TEXT)) > 0) {
             myTag.AttachFrame(myFrame);
@@ -549,6 +556,7 @@ int main( int argc, char *argv[])
           if (text == NULL) 
           {
             myFrame->Field(ID3FN_TEXT) = frameList[ii].data;
+            myFrame->Field(ID3FN_TEXTENC) = id3te;
           } else {
          	*text = '\0';
           	text++;
@@ -558,11 +566,13 @@ int main( int argc, char *argv[])
           	{
           	  myFrame->Field(ID3FN_DESCRIPTION) = frameList[ii].data;
           	  myFrame->Field(ID3FN_TEXT) = text;
+              myFrame->Field(ID3FN_TEXTENC) = id3te;
           	} else {
           	  *lang = '\0';
           	  lang++;
           	  myFrame->Field(ID3FN_DESCRIPTION) = frameList[ii].data;
               myFrame->Field(ID3FN_TEXT) = text;
+              myFrame->Field(ID3FN_TEXTENC) = id3te;
               myFrame->Field(ID3FN_LANGUAGE) = lang;
             }
           }
